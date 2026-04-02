@@ -110,3 +110,19 @@ Set up pre-commit hooks:
 uvx pre-commit install
 uvx pre-commit run --all-files
 ```
+
+## Recommended branch protection
+
+For a public open-source library, protect your default branch and require these checks:
+
+- `CI / Test (Python 3.11)`
+- `CI / Test (Python 3.12)`
+- `CI / Package Build Check`
+- `Dependency Security Audit / pip-audit`
+- `CodeQL / Analyze (python)`
+
+Also enable these repository security settings in GitHub:
+
+- Dependabot alerts
+- Dependabot security updates
+- Code scanning alerts
