@@ -1,10 +1,10 @@
 # python-bitchat-client
 
 `python-bitchat-client` is a small, headless Python package for integrating with the
-BitChat BLE mesh protocol from non-UI applications.
+BitChat BLE mesh protocol. It comes with a basic sample client application, but it's 
+intended to be embedded and used by other tools.
 
-It is designed to be embedded by other runtimes (for example, kiosks, automation
-agents, or service daemons) and to keep transport concerns isolated from app logic.
+It doesn't currently implement channel discovery.
 
 ## What this package provides
 
@@ -20,13 +20,7 @@ agents, or service daemons) and to keep transport concerns isolated from app log
 
 ## Installation
 
-This repository uses `uv`, and the package is already wired as a local dependency.
-
-If you want to use this package in another project later, install from a path or wheel:
-
-```bash
-uv add /path/to/python-bitchat-client
-```
+You can install this package from pypi using `pip install python-bitchat-client`
 
 ## Basic usage
 
@@ -57,15 +51,15 @@ A simple terminal harness is included for manual send/receive testing.
 
 Path:
 
-- `packages/python-bitchat-client/examples/terminal_harness.py`
+- `examples/terminal_harness.py`
 
 Run from repository root:
 
 ```bash
-uv run python packages/python-bitchat-client/examples/terminal_harness.py --handle crystal-jim --channel "#mesh"
+uv run python examples/terminal_harness.py --handle my-handle --channel "#mesh"
 
 # Verbose packet/transport debugging
-uv run python packages/python-bitchat-client/examples/terminal_harness.py --handle crystal-jim --channel "#mesh" --log-level DEBUG
+uv run python examples/terminal_harness.py --handle my-handle --channel "#mesh" --log-level DEBUG
 ```
 
 Harness commands:
@@ -101,12 +95,6 @@ Common status codes emitted by the BLE client:
 - `send_failed`
 - `stopped`
 - `backend_unavailable` (fallback client)
-
-## Scope and caveats
-
-- Current scope is BLE mesh/public channel flow (`#mesh` by default).
-- Encryption/private message pathways are not yet implemented in this package.
-- Protocol coverage is intentionally narrow and focused on integration reliability.
 
 ## Development
 
