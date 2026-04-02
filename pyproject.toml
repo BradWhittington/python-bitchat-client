@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "python-bitchat-client"
+version = "0.1.0"
+description = "Headless Python client interfaces for BitChat bridges"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "bleak>=0.22.3",
+    "pynacl>=1.5.0",
+    "cryptography>=41.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/python_bitchat_client"]
