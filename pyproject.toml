@@ -13,6 +13,23 @@ dependencies = [
     "pynacl>=1.5.0",
     "cryptography>=41.0.0",
 ]
+authors = [{ name = "Brad Whittington" }]
+license = "MIT"
+keywords = ["ble", "mesh", "bitchat", "client"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/bradwhittington/python-bitchat-client"
+Repository = "https://github.com/bradwhittington/python-bitchat-client"
+Issues = "https://github.com/bradwhittington/python-bitchat-client/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/python_bitchat_client"]

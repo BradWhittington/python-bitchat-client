@@ -1,7 +1,7 @@
 # python-bitchat-client
 
 `python-bitchat-client` is a small, headless Python package for integrating with the
-BitChat BLE mesh protocol. It comes with a basic sample client application, but it's 
+BitChat BLE mesh protocol. It comes with a basic sample client application, but it's
 intended to be embedded and used by other tools.
 
 It doesn't currently implement channel discovery.
@@ -102,4 +102,11 @@ Run package-related tests from repository root:
 
 ```bash
 uv run pytest tests/test_python_bitchat_client_protocol.py tests/test_python_bitchat_client_client.py
+```
+
+Set up pre-commit hooks:
+
+```bash
+uvx pre-commit install
+uvx pre-commit run --all-files
 ```
