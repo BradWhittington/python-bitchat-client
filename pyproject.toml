@@ -31,5 +31,11 @@ Homepage = "https://github.com/bradwhittington/python-bitchat-client"
 Repository = "https://github.com/bradwhittington/python-bitchat-client"
 Issues = "https://github.com/bradwhittington/python-bitchat-client/issues"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "twine>=6.1.0",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/python_bitchat_client"]
