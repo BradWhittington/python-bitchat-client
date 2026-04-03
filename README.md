@@ -17,6 +17,8 @@ It doesn't currently implement channel discovery.
 - A BLE implementation (`BleBitChatClient`) powered by `bleak`
 - A fallback no-op implementation (`NullBitChatClient`) when BLE backend is not available
 - Protocol helpers for packet parsing/building
+- Flood relay/rebroadcast with TTL decrement for transit packets
+- Swappable dedupe cache (default exact LRU+TTL cache)
 
 ## Installation
 
@@ -44,6 +46,33 @@ client.start()
 ok = client.send_message("@crystal-jim say hello from python")
 print("sent:", ok)
 ```
+
+## Relay and dedupe behavior
+
+- Inbound packets with `ttl > 1` may be relayed with `ttl - 1`.
+- Relay suppression uses a dedupe key of `sender_id + timestamp + message_type`.
+- Default dedupe is an exact in-memory LRU cache with TTL expiry (no false positives).
+
+You can inject your own dedupe cache at construction time. If omitted, a default
+`LruTtlDedupeCache` instance is created.
+
+```python
+from python_bitchat_client.client import create_client
+
+
+class BloomLikeCache:
+    def is_duplicate(self, key: str) -> bool:
+        ...
+
+    def mark_seen(self, key: str) -> None:
+        ...
+
+
+client = create_client(dedupe_cache=BloomLikeCache())
+```
+
+Note: probabilistic dedupe caches (for example Bloom filters) can produce false
+positives and may suppress legitimate relays.
 
 ## Interactive test harness
 

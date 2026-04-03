@@ -39,6 +39,7 @@ class ParsedPacket:
     sender_id: str
     recipient_id: str | None
     payload: bytes
+    ttl: int = 0
     timestamp: int = 0
 
 
@@ -56,7 +57,7 @@ def parse_packet(data: bytes) -> ParsedPacket:
     offset += 1
     logger.debug("packet type=0x%02x len=%d", msg_type, len(data))
 
-    _ttl = data[offset]
+    ttl = data[offset]
     offset += 1
 
     timestamp = struct.unpack(">Q", data[offset : offset + 8])[0]
@@ -84,6 +85,7 @@ def parse_packet(data: bytes) -> ParsedPacket:
         sender_id=sender_id,
         recipient_id=recipient_id,
         payload=payload,
+        ttl=ttl,
         timestamp=timestamp,
     )
 
