@@ -13,6 +13,8 @@ from python_bitchat_client._vendor.bitchat_protocol import (
     encode as encode_wire_packet,
     encode_announcement as encode_announcement_tlv,
     encode_private_message as encode_private_message_tlv,
+    peer_id_from_bytes,
+    peer_id_to_bytes,
 )
 from nacl.encoding import RawEncoder
 from nacl.signing import SigningKey
@@ -55,13 +57,15 @@ class ParsedPacket:
 
 
 def _peer_hex_to_bytes(peer_id_hex: str) -> bytes:
-    return bytes.fromhex(peer_id_hex)[:8].ljust(8, b"\x00")
+    if len(peer_id_hex) >= 16:
+        return peer_id_to_bytes(peer_id_hex[:16].lower())
+    return bytes.fromhex(peer_id_hex).ljust(8, b"\x00")[:8]
 
 
 def _peer_bytes_to_hex(peer_id: bytes | None) -> str | None:
     if peer_id is None:
         return None
-    return peer_id.rstrip(b"\x00").hex()
+    return peer_id_from_bytes(peer_id)
 
 
 def parse_packet(data: bytes) -> ParsedPacket:

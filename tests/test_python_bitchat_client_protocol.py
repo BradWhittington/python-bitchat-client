@@ -1,6 +1,7 @@
 import struct
 import zlib
 
+from python_bitchat_client._vendor.bitchat_protocol import BitchatPacket, encode
 from python_bitchat_client.client import BleBitChatClient
 from python_bitchat_client.keys import IdentityKeyPair
 from python_bitchat_client.protocol import (
@@ -266,3 +267,22 @@ def test_parse_packet_decompresses_compressed_payload() -> None:
     parsed = parse_packet(bytes(packet))
 
     assert parsed.payload == plaintext
+
+
+def test_parse_packet_preserves_peer_hex_with_trailing_zeros() -> None:
+    wire = encode(
+        BitchatPacket(
+            version=1,
+            type=MessageType.MESSAGE.value,
+            ttl=7,
+            timestamp=1,
+            flags=0,
+            sender_id=bytes.fromhex("0102030400000000"),
+            payload=b"hello",
+        ),
+        padding=False,
+    )
+
+    parsed = parse_packet(wire)
+
+    assert parsed.sender_id == "0102030400000000"
