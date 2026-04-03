@@ -40,5 +40,11 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/python_bitchat_client"]
 
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+    "src/python_bitchat_client/_vendor/bitchat_protocol/tests",
+]
+
 [tool.ruff]
 extend-exclude = ["src/python_bitchat_client/_vendor"]
