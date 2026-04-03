@@ -38,7 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release of `python-bitchat-client`.
+- Initial release of `python-bitchat-client`: a lightweight, headless Python
+  client library for BitChat BLE mesh integrations.
+- Protocol-focused foundations aligned with the BitChat whitepaper and informed
+  by observed behavior in the Swift/iOS implementation for ecosystem
+  compatibility.
+- Core library modules for packet parsing/building, Noise protocol session
+  handling, identity/key material, and client-side message models.
+- A BLE-backed client implementation (`BleBitChatClient`) with a no-op fallback
+  (`NullBitChatClient`) for environments where BLE backend support is missing.
+- Interactive terminal harness example for manual send/receive testing.
+- Initial unit test coverage across keys, protocol handling, client behavior,
+  and Noise/session paths.
 
 [0.2.0]: https://github.com/BradWhittington/python-bitchat-client/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BradWhittington/python-bitchat-client/releases/tag/v0.1.0
