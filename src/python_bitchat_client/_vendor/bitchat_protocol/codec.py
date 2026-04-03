@@ -192,7 +192,8 @@ def _decode_core_raises(raw: bytes) -> BitchatPacket:
 
     offset = 0
 
-    version = raw[offset]; offset += 1
+    version = raw[offset]
+    offset += 1
     if version not in (1, 2):
         raise UnsupportedVersionError(version)
 
@@ -200,10 +201,14 @@ def _decode_core_raises(raw: bytes) -> BitchatPacket:
     if len(raw) < hdr_size + SENDER_ID_SIZE:
         raise PacketTooShortError(len(raw), hdr_size + SENDER_ID_SIZE)
 
-    pkt_type = raw[offset]; offset += 1
-    ttl = raw[offset]; offset += 1
-    (timestamp,) = struct.unpack_from(">Q", raw, offset); offset += 8
-    flags = raw[offset]; offset += 1
+    pkt_type = raw[offset]
+    offset += 1
+    ttl = raw[offset]
+    offset += 1
+    (timestamp,) = struct.unpack_from(">Q", raw, offset)
+    offset += 8
+    flags = raw[offset]
+    offset += 1
 
     has_recipient = bool(flags & PacketFlag.HAS_RECIPIENT)
     has_signature = bool(flags & PacketFlag.HAS_SIGNATURE)
@@ -213,34 +218,39 @@ def _decode_core_raises(raw: bytes) -> BitchatPacket:
 
     len_field_bytes = _len_field_size(version)
     if version == 2:
-        (payload_length,) = struct.unpack_from(">I", raw, offset); offset += 4
+        (payload_length,) = struct.unpack_from(">I", raw, offset)
+        offset += 4
     else:
-        (payload_length,) = struct.unpack_from(">H", raw, offset); offset += 2
+        (payload_length,) = struct.unpack_from(">H", raw, offset)
+        offset += 2
 
     # SenderID
     if offset + SENDER_ID_SIZE > len(raw):
         raise TruncatedFieldError("senderID")
-    sender_id = raw[offset:offset + SENDER_ID_SIZE]; offset += SENDER_ID_SIZE
+    sender_id = raw[offset : offset + SENDER_ID_SIZE]
+    offset += SENDER_ID_SIZE
 
     # RecipientID
     recipient_id: Optional[bytes] = None
     if has_recipient:
         if offset + RECIPIENT_ID_SIZE > len(raw):
             raise TruncatedFieldError("recipientID")
-        recipient_id = raw[offset:offset + RECIPIENT_ID_SIZE]; offset += RECIPIENT_ID_SIZE
+        recipient_id = raw[offset : offset + RECIPIENT_ID_SIZE]
+        offset += RECIPIENT_ID_SIZE
 
     # Route (v2+ only)
     route: Optional[list[bytes]] = None
     if has_route:
         if offset + 1 > len(raw):
             raise TruncatedFieldError("routeCount")
-        route_count = raw[offset]; offset += 1
+        route_count = raw[offset]
+        offset += 1
         if route_count > 0:
             hops = []
             for i in range(route_count):
                 if offset + SENDER_ID_SIZE > len(raw):
                     raise TruncatedFieldError(f"route[{i}]")
-                hops.append(raw[offset:offset + SENDER_ID_SIZE])
+                hops.append(raw[offset : offset + SENDER_ID_SIZE])
                 offset += SENDER_ID_SIZE
             route = hops
 
@@ -249,15 +259,18 @@ def _decode_core_raises(raw: bytes) -> BitchatPacket:
         if payload_length < len_field_bytes:
             raise TruncatedFieldError("compressionPreamble")
         if version == 2:
-            (original_size,) = struct.unpack_from(">I", raw, offset); offset += 4
+            (original_size,) = struct.unpack_from(">I", raw, offset)
+            offset += 4
         else:
-            (original_size,) = struct.unpack_from(">H", raw, offset); offset += 2
+            (original_size,) = struct.unpack_from(">H", raw, offset)
+            offset += 2
         compressed_size = payload_length - len_field_bytes
         if compressed_size <= 0:
             raise TruncatedFieldError("compressedPayload")
         if offset + compressed_size > len(raw):
             raise TruncatedFieldError("compressedPayload")
-        compressed_data = raw[offset:offset + compressed_size]; offset += compressed_size
+        compressed_data = raw[offset : offset + compressed_size]
+        offset += compressed_size
 
         ratio = original_size / compressed_size if compressed_size > 0 else float("inf")
         if ratio > MAX_COMPRESSION_RATIO:
@@ -272,14 +285,16 @@ def _decode_core_raises(raw: bytes) -> BitchatPacket:
     else:
         if offset + payload_length > len(raw):
             raise TruncatedFieldError("payload")
-        payload = raw[offset:offset + payload_length]; offset += payload_length
+        payload = raw[offset : offset + payload_length]
+        offset += payload_length
 
     # Signature
     signature: Optional[bytes] = None
     if has_signature:
         if offset + SIGNATURE_SIZE > len(raw):
             raise TruncatedFieldError("signature")
-        signature = raw[offset:offset + SIGNATURE_SIZE]; offset += SIGNATURE_SIZE
+        signature = raw[offset : offset + SIGNATURE_SIZE]
+        offset += SIGNATURE_SIZE
 
     return BitchatPacket(
         version=version,

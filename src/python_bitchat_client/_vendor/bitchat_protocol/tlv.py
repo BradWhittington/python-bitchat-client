@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .errors import TLVDecodeError, TLVEncodeError
+from .errors import TLVEncodeError
 from .types import AnnouncementPacket, PrivateMessagePacket
 
 # ── AnnouncementPacket tag constants ─────────────────────────────────────────
@@ -68,11 +68,14 @@ def decode_announcement(data: bytes) -> Optional[AnnouncementPacket]:
     direct_neighbors: Optional[list[bytes]] = None
 
     while offset + 2 <= len(data):
-        tag = data[offset]; offset += 1
-        length = data[offset]; offset += 1
+        tag = data[offset]
+        offset += 1
+        length = data[offset]
+        offset += 1
         if offset + length > len(data):
             return None
-        value = data[offset:offset + length]; offset += length
+        value = data[offset : offset + length]
+        offset += length
 
         if tag == _ANN_NICKNAME:
             try:
@@ -86,7 +89,7 @@ def decode_announcement(data: bytes) -> Optional[AnnouncementPacket]:
         elif tag == _ANN_NEIGHBORS:
             if length > 0 and length % 8 == 0:
                 count = length // 8
-                direct_neighbors = [value[i * 8:(i + 1) * 8] for i in range(count)]
+                direct_neighbors = [value[i * 8 : (i + 1) * 8] for i in range(count)]
         else:
             pass  # Unknown tag — skip (forward-compatible)
 
@@ -126,13 +129,16 @@ def decode_private_message(data: bytes) -> Optional[PrivateMessagePacket]:
     content: Optional[str] = None
 
     while offset + 2 <= len(data):
-        tag = data[offset]; offset += 1
+        tag = data[offset]
+        offset += 1
         if tag not in (_PM_MESSAGE_ID, _PM_CONTENT):
             return None  # Strict: unknown tag → failure
-        length = data[offset]; offset += 1
+        length = data[offset]
+        offset += 1
         if offset + length > len(data):
             return None
-        value = data[offset:offset + length]; offset += length
+        value = data[offset : offset + length]
+        offset += length
 
         try:
             if tag == _PM_MESSAGE_ID:
@@ -150,5 +156,7 @@ def decode_private_message(data: bytes) -> Optional[PrivateMessagePacket]:
 
 def _make_tlv(tag: int, value: bytes) -> bytes:
     if len(value) > 255:
-        raise TLVEncodeError(f"TLV value too long for tag 0x{tag:02x}: {len(value)} bytes")
+        raise TLVEncodeError(
+            f"TLV value too long for tag 0x{tag:02x}: {len(value)} bytes"
+        )
     return bytes([tag, len(value)]) + value

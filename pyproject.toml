@@ -45,6 +45,3 @@ testpaths = [
     "tests",
     "src/python_bitchat_client/_vendor/bitchat_protocol/tests",
 ]
-
-[tool.ruff]
-extend-exclude = ["src/python_bitchat_client/_vendor"]
