@@ -46,6 +46,17 @@ If you find ambiguity, prefer compatibility with the whitepaper and observed Swi
 5. When adding protocol constants/fields, keep naming and wire-format semantics aligned with whitepaper/Swift references.
 6. Update `README.md` when user-facing behavior, APIs, or setup steps change.
 
+## Dependency security policy
+
+- This project is protocol-sensitive. Prefer strict dependency controls over convenience.
+- Prefer vendoring protocol-critical dependencies under `src/python_bitchat_client/_vendor/` to reduce supply and availability risk.
+- Vendored code should stay isolated and preserve upstream structure as much as practical.
+- Every vendored dependency must include provenance metadata (source URL, version, import method, and license location).
+- For non-vendored protocol and security-sensitive dependencies, pin exact versions (`==`) in `pyproject.toml`.
+- Any dependency change must include the corresponding `uv.lock` update in the same branch.
+- Do not widen version ranges for sensitive dependencies without an explicit request and compatibility rationale.
+- Validate dependency changes with at least `uv run pytest` and `uv build` before claiming completion.
+
 ## Packaging and release notes
 
 - Build backend is `hatchling` via `pyproject.toml`.
