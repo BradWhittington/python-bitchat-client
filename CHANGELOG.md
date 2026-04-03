@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-03
+
+### Added
+
+- Vendored upstream `bitchat-protocol` `0.1.1` source under
+  `src/python_bitchat_client/_vendor/bitchat_protocol` with provenance and
+  license metadata tracked in-tree.
+- Dependency policy tests to enforce vendored protocol usage and provenance
+  metadata expectations.
+
+### Changed
+
+- `src/python_bitchat_client/protocol.py` now delegates binary packet and TLV
+  encode/decode behavior to the vendored protocol implementation while
+  preserving this library's existing public protocol API surface.
+- `README.md` now documents vendored protocol codec location and provenance
+  metadata path.
+- Project license changed from MIT to The Unlicense.
+- Clarified license boundary for vendored upstream codec and included upstream
+  vendored license text in-tree for redistribution.
+
+### Security
+
+- Updated agent guidance to prefer vendoring protocol-critical dependencies and
+  require explicit provenance documentation for vendored code.
+
 ## [0.2.0] - 2026-04-03
 
 ### Added
@@ -51,5 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial unit test coverage across keys, protocol handling, client behavior,
   and Noise/session paths.
 
+[0.3.0]: https://github.com/BradWhittington/python-bitchat-client/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/BradWhittington/python-bitchat-client/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/BradWhittington/python-bitchat-client/releases/tag/v0.1.0
