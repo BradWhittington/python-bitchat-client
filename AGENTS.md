@@ -49,6 +49,13 @@ If you find ambiguity, prefer compatibility with the whitepaper and observed Swi
 ## Packaging and release notes
 
 - Build backend is `hatchling` via `pyproject.toml`.
+- For any release/version bump, update `CHANGELOG.md` in the same branch/PR.
+- Changelog conventions:
+  - Follow Keep a Changelog format and SemVer version headings.
+  - Add a dated version section (for example `## [0.2.0] - 2026-04-03`).
+  - Group entries under standard sections as applicable: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+  - Keep entries user-facing and behavior-focused (avoid low-level commit noise).
+  - Maintain/update version comparison links at the bottom of `CHANGELOG.md`.
 - Before publish, run:
   1. `uv build`
   2. `uv run python -m twine check dist/*`
