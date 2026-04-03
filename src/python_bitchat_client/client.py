@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .dedupe import LruTtlDedupeCache, MessageDedupCache
 from .keys import IdentityKeyPair
 from .logging_utils import get_logger
 from .models import ChatMessage, PeerInfo
@@ -113,7 +114,11 @@ class BleBitChatClient:
     HANDSHAKE_MAX_RETRIES = 1
     RECOVERY_COOLDOWN_SECONDS = 3.0
 
-    def __init__(self, identity: IdentityKeyPair | None = None) -> None:
+    def __init__(
+        self,
+        identity: IdentityKeyPair | None = None,
+        dedupe_cache: MessageDedupCache | None = None,
+    ) -> None:
         self._handler: Callable[[ChatMessage], None] | None = None
         self._status_handler: Callable[[ClientStatus], None] | None = None
         self._handle = ""
@@ -135,6 +140,7 @@ class BleBitChatClient:
         self._handshake_retries: dict[str, int] = {}
         self._last_recovery_attempt: dict[str, float] = {}
         self._watchdog_task: asyncio.Task[None] | None = None
+        self._dedupe_cache = dedupe_cache or LruTtlDedupeCache()
 
     def set_message_handler(self, handler: Callable[[ChatMessage], None]) -> None:
         self._handler = handler
@@ -415,11 +421,10 @@ class BleBitChatClient:
         return True
 
     def _on_notification(self, _characteristic: Any, data: bytearray) -> None:
-        if self._handler is None:
-            return
         logger.debug("notification bytes=%d", len(data))
         try:
             packet = parse_packet(bytes(data))
+            self._maybe_relay_packet(packet, bytes(data))
 
             if packet.msg_type == MessageType.ANNOUNCE.value:
                 announce = parse_announce_packet(packet)
@@ -445,8 +450,41 @@ class BleBitChatClient:
             self._emit_status("warning", "packet_parse_failed", str(exc))
             return
         logger.debug("parsed chat messages=%d", len(messages))
+        if self._handler is None:
+            return
         for message in messages:
             self._handler(message)
+
+    def _maybe_relay_packet(self, packet: Any, raw_packet: bytes) -> None:
+        if packet.sender_id == self._peer_id_hex:
+            return
+
+        dedupe_key = f"{packet.sender_id}-{packet.timestamp}-{packet.msg_type}"
+        if self._dedupe_cache.is_duplicate(dedupe_key):
+            return
+        self._dedupe_cache.mark_seen(dedupe_key)
+
+        if packet.ttl <= 1:
+            return
+
+        active_client = self._active_client
+        if self._loop is None or active_client is None:
+            return
+
+        relay_packet = bytearray(raw_packet)
+        relay_packet[2] = packet.ttl - 1
+
+        async def _relay() -> None:
+            try:
+                await active_client.write_gatt_char(
+                    self.CHARACTERISTIC_UUID,
+                    bytes(relay_packet),
+                    response=False,
+                )
+            except Exception as exc:
+                self._emit_status("warning", "relay_failed", str(exc))
+
+        asyncio.run_coroutine_threadsafe(_relay(), self._loop)
 
     def _handle_noise_handshake(self, packet) -> None:
         if packet.recipient_id and packet.recipient_id != self._peer_id_hex:
@@ -740,10 +778,13 @@ class BleBitChatClient:
             await asyncio.sleep(poll_interval)
 
 
-def create_client(identity: IdentityKeyPair | None = None) -> BitChatClient:
+def create_client(
+    identity: IdentityKeyPair | None = None,
+    dedupe_cache: MessageDedupCache | None = None,
+) -> BitChatClient:
     try:
         import bleak  # noqa: F401
 
-        return BleBitChatClient(identity=identity)
+        return BleBitChatClient(identity=identity, dedupe_cache=dedupe_cache)
     except Exception:
         return NullBitChatClient()
