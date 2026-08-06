@@ -20,6 +20,25 @@ It doesn't currently implement channel discovery.
 - Flood relay/rebroadcast with TTL decrement for transit packets
 - Swappable dedupe cache (default exact LRU+TTL cache)
 
+## Vendored protocol codec
+
+To reduce supply-chain and availability risk for protocol-critical logic, this project
+vendors the upstream `bitchat-protocol` codec implementation directly in-tree under:
+
+- `src/python_bitchat_client/_vendor/bitchat_protocol`
+
+Vendoring provenance, source version, and license/reference locations are documented in:
+
+- `src/python_bitchat_client/_vendor/VENDORED.md`
+
+## License
+
+- This project is released under **The Unlicense** (see `LICENSE`).
+- The vendored upstream protocol codec under
+  `src/python_bitchat_client/_vendor/bitchat_protocol` retains its upstream
+  license terms; see `src/python_bitchat_client/_vendor/bitchat_protocol_LICENSE`.
+- Distribution of this project includes both license texts where applicable.
+
 ## Installation
 
 You can install this package from pypi using `pip install python-bitchat-client`

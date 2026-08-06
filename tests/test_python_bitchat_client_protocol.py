@@ -1,3 +1,7 @@
+import struct
+import zlib
+
+from python_bitchat_client._vendor.bitchat_protocol import BitchatPacket, encode
 from python_bitchat_client.client import BleBitChatClient
 from python_bitchat_client.keys import IdentityKeyPair
 from python_bitchat_client.protocol import (
@@ -223,3 +227,62 @@ def test_private_message_payload_roundtrip() -> None:
     message_id, text = parsed
     assert message_id == "m1"
     assert text == "hello dm"
+
+
+def test_parse_packet_accepts_v2_wire_format() -> None:
+    payload = b"v2 hello"
+    packet = bytearray()
+    packet.append(2)  # version
+    packet.append(MessageType.MESSAGE.value)
+    packet.append(7)  # ttl
+    packet.extend(struct.pack(">Q", 1_711_234_567_890))
+    packet.append(0)  # flags
+    packet.extend(struct.pack(">I", len(payload)))
+    packet.extend(bytes.fromhex("0011223344556677"))
+    packet.extend(payload)
+
+    parsed = parse_packet(bytes(packet))
+
+    assert parsed.msg_type == MessageType.MESSAGE.value
+    assert parsed.payload == payload
+    assert parsed.ttl == 7
+
+
+def test_parse_packet_decompresses_compressed_payload() -> None:
+    plaintext = ("hello compressed " * 30).encode("utf-8")
+    compressor = zlib.compressobj(level=6, wbits=-15)
+    compressed = compressor.compress(plaintext) + compressor.flush()
+
+    packet = bytearray()
+    packet.append(1)  # version
+    packet.append(MessageType.MESSAGE.value)
+    packet.append(7)
+    packet.extend(struct.pack(">Q", 1_711_234_567_890))
+    packet.append(0x04)  # is_compressed
+    packet.extend(struct.pack(">H", len(compressed) + 2))
+    packet.extend(bytes.fromhex("0011223344556677"))
+    packet.extend(struct.pack(">H", len(plaintext)))
+    packet.extend(compressed)
+
+    parsed = parse_packet(bytes(packet))
+
+    assert parsed.payload == plaintext
+
+
+def test_parse_packet_preserves_peer_hex_with_trailing_zeros() -> None:
+    wire = encode(
+        BitchatPacket(
+            version=1,
+            type=MessageType.MESSAGE.value,
+            ttl=7,
+            timestamp=1,
+            flags=0,
+            sender_id=bytes.fromhex("0102030400000000"),
+            payload=b"hello",
+        ),
+        padding=False,
+    )
+
+    parsed = parse_packet(wire)
+
+    assert parsed.sender_id == "0102030400000000"

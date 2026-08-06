@@ -1,8 +1,21 @@
-import struct
 import time
 from dataclasses import dataclass
 from enum import IntEnum
 
+from python_bitchat_client._vendor.bitchat_protocol import (
+    AnnouncementPacket as WireAnnouncementPacket,
+    BitchatPacket as WirePacket,
+    PacketFlag,
+    PrivateMessagePacket as WirePrivateMessagePacket,
+    decode as decode_wire_packet,
+    decode_announcement as decode_announcement_tlv,
+    decode_private_message as decode_private_message_tlv,
+    encode as encode_wire_packet,
+    encode_announcement as encode_announcement_tlv,
+    encode_private_message as encode_private_message_tlv,
+    peer_id_from_bytes,
+    peer_id_to_bytes,
+)
 from nacl.encoding import RawEncoder
 from nacl.signing import SigningKey
 
@@ -12,8 +25,8 @@ from .models import AnnouncePacket, ChatMessage
 
 logger = get_logger()
 
-FLAG_HAS_RECIPIENT = 0x01
-FLAG_HAS_SIGNATURE = 0x02
+FLAG_HAS_RECIPIENT = int(PacketFlag.HAS_RECIPIENT)
+FLAG_HAS_SIGNATURE = int(PacketFlag.HAS_SIGNATURE)
 
 BROADCAST_RECIPIENT = b"\xff" * 8
 
@@ -43,95 +56,52 @@ class ParsedPacket:
     timestamp: int = 0
 
 
+def _peer_hex_to_bytes(peer_id_hex: str) -> bytes:
+    if len(peer_id_hex) >= 16:
+        return peer_id_to_bytes(peer_id_hex[:16].lower())
+    return bytes.fromhex(peer_id_hex).ljust(8, b"\x00")[:8]
+
+
+def _peer_bytes_to_hex(peer_id: bytes | None) -> str | None:
+    if peer_id is None:
+        return None
+    return peer_id_from_bytes(peer_id)
+
+
 def parse_packet(data: bytes) -> ParsedPacket:
-    if len(data) < 21:
-        raise ValueError("packet too small")
+    packet = decode_wire_packet(data)
+    if packet is None:
+        raise ValueError("packet parse failed")
 
-    offset = 0
-    version = data[offset]
-    offset += 1
-    if version != 1:
-        raise ValueError("unsupported packet version")
+    sender_id = _peer_bytes_to_hex(packet.sender_id)
+    if sender_id is None:
+        raise ValueError("packet missing sender_id")
 
-    msg_type = int(data[offset])
-    offset += 1
-    logger.debug("packet type=0x%02x len=%d", msg_type, len(data))
+    logger.debug("packet type=0x%02x len=%d", packet.type, len(data))
 
-    ttl = data[offset]
-    offset += 1
-
-    timestamp = struct.unpack(">Q", data[offset : offset + 8])[0]
-    offset += 8
-
-    flags = data[offset]
-    offset += 1
-
-    payload_len = struct.unpack(">H", data[offset : offset + 2])[0]
-    offset += 2
-
-    sender_raw = data[offset : offset + 8]
-    sender_id = sender_raw.rstrip(b"\x00").hex()
-    offset += 8
-
-    recipient_id = None
-    if flags & FLAG_HAS_RECIPIENT:
-        recipient_raw = data[offset : offset + 8]
-        recipient_id = recipient_raw.rstrip(b"\x00").hex()
-        offset += 8
-
-    payload = data[offset : offset + payload_len]
     return ParsedPacket(
-        msg_type=msg_type,
+        msg_type=int(packet.type),
         sender_id=sender_id,
-        recipient_id=recipient_id,
-        payload=payload,
-        ttl=ttl,
-        timestamp=timestamp,
+        recipient_id=_peer_bytes_to_hex(packet.recipient_id),
+        payload=packet.payload,
+        ttl=packet.ttl,
+        timestamp=packet.timestamp,
     )
 
 
 def parse_announce_packet(packet: ParsedPacket) -> AnnouncePacket | None:
-    """Parse TLV announcement packet payload."""
     if packet.msg_type != MessageType.ANNOUNCE.value:
         return None
 
-    payload = packet.payload
-
-    nickname: str | None = None
-    noise_public_key: bytes | None = None
-    signing_public_key: bytes | None = None
-    direct_neighbors: list[bytes] = []
-
-    offset = 0
-    while offset + 2 <= len(payload):
-        tlv_type = payload[offset]
-        tlv_len = payload[offset + 1]
-        offset += 2
-        if offset + tlv_len > len(payload):
-            return None
-        value = payload[offset : offset + tlv_len]
-        offset += tlv_len
-
-        if tlv_type == 0x01:
-            nickname = value.decode("utf-8", errors="replace")
-        elif tlv_type == 0x02:
-            noise_public_key = value
-        elif tlv_type == 0x03:
-            signing_public_key = value
-        elif tlv_type == 0x04:
-            if tlv_len % 8 != 0:
-                return None
-            for i in range(0, tlv_len, 8):
-                direct_neighbors.append(value[i : i + 8])
-
-    if nickname is None or noise_public_key is None or signing_public_key is None:
+    decoded = decode_announcement_tlv(packet.payload)
+    if decoded is None:
         return None
 
     return AnnouncePacket(
-        nickname=nickname,
-        noise_public_key=noise_public_key,
-        signing_public_key=signing_public_key,
-        direct_neighbors=direct_neighbors,
+        nickname=decoded.nickname,
+        noise_public_key=decoded.noise_public_key,
+        signing_public_key=decoded.signing_public_key,
+        direct_neighbors=list(decoded.direct_neighbors or []),
         sender_peer_id=packet.sender_id,
         timestamp=getattr(packet, "timestamp", 0),
     )
@@ -171,40 +141,23 @@ def build_public_message_payload(
 
 
 def build_private_message_payload(*, message_id: str, text: str) -> bytes:
-    msg_id_bytes = message_id.encode("utf-8")[:255]
-    content_bytes = text.encode("utf-8")[:255]
-    tlv = bytearray()
-    tlv.append(0x00)
-    tlv.append(len(msg_id_bytes))
-    tlv.extend(msg_id_bytes)
-    tlv.append(0x01)
-    tlv.append(len(content_bytes))
-    tlv.extend(content_bytes)
-    return bytes([NOISE_PAYLOAD_PRIVATE_MESSAGE]) + bytes(tlv)
+    packet = WirePrivateMessagePacket(
+        message_id=message_id[:255],
+        content=text[:255],
+    )
+    tlv = encode_private_message_tlv(packet)
+    return bytes([NOISE_PAYLOAD_PRIVATE_MESSAGE]) + tlv
 
 
 def parse_private_message_payload(payload: bytes) -> tuple[str, str] | None:
     if not payload or payload[0] != NOISE_PAYLOAD_PRIVATE_MESSAGE:
         return None
-    data = payload[1:]
-    offset = 0
-    message_id = ""
-    content = ""
-    while offset + 2 <= len(data):
-        tlv_type = data[offset]
-        tlv_len = data[offset + 1]
-        offset += 2
-        if offset + tlv_len > len(data):
-            return None
-        value = data[offset : offset + tlv_len]
-        offset += tlv_len
-        if tlv_type == 0x00:
-            message_id = value.decode("utf-8", errors="replace")
-        elif tlv_type == 0x01:
-            content = value.decode("utf-8", errors="replace")
-    if not content:
+    decoded = decode_private_message_tlv(payload[1:])
+    if decoded is None:
         return None
-    return message_id, content
+    if not decoded.content:
+        return None
+    return decoded.message_id, decoded.content
 
 
 def build_packet(
@@ -216,38 +169,42 @@ def build_packet(
     signing_key: bytes | None = None,
 ) -> bytes:
     timestamp_ms = int(time.time() * 1000)
-    flags = 0
-    if recipient_peer_id_hex:
-        flags |= FLAG_HAS_RECIPIENT
+    sender_id = _peer_hex_to_bytes(sender_peer_id_hex)
+    recipient_id = (
+        _peer_hex_to_bytes(recipient_peer_id_hex) if recipient_peer_id_hex else None
+    )
 
     signature: bytes | None = None
     if signing_key is not None:
-        canonical_packet = _build_base_packet(
-            msg_type=msg_type,
-            payload=payload,
-            sender_peer_id_hex=sender_peer_id_hex,
-            recipient_peer_id_hex=recipient_peer_id_hex,
-            flags=flags,
+        canonical_packet = WirePacket(
+            version=1,
+            type=int(msg_type.value),
             ttl=0,
-            timestamp_ms=timestamp_ms,
+            timestamp=timestamp_ms,
+            flags=0,
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            payload=payload,
+            signature=None,
         )
-        canonical_packet = _pad_packet(canonical_packet)
+        canonical_encoded = encode_wire_packet(canonical_packet, padding=False)
+        canonical_encoded = _pad_packet(bytearray(canonical_encoded))
         signing_key_obj = SigningKey(signing_key, encoder=RawEncoder)
-        signature = signing_key_obj.sign(canonical_packet, encoder=RawEncoder)[:64]
-        flags |= FLAG_HAS_SIGNATURE
+        signature = signing_key_obj.sign(canonical_encoded, encoder=RawEncoder)[:64]
 
-    packet = _build_base_packet(
-        msg_type=msg_type,
-        payload=payload,
-        sender_peer_id_hex=sender_peer_id_hex,
-        recipient_peer_id_hex=recipient_peer_id_hex,
-        flags=flags,
+    packet = WirePacket(
+        version=1,
+        type=int(msg_type.value),
         ttl=7,
-        timestamp_ms=timestamp_ms,
+        timestamp=timestamp_ms,
+        flags=0,
+        sender_id=sender_id,
+        recipient_id=recipient_id,
+        payload=payload,
+        signature=signature,
     )
-    if signature is not None:
-        packet.extend(signature)
-    return _pad_packet(packet)
+    encoded = encode_wire_packet(packet, padding=False)
+    return _pad_packet(bytearray(encoded))
 
 
 def build_announcement_packet(
@@ -255,59 +212,21 @@ def build_announcement_packet(
     nickname: str,
     identity: IdentityKeyPair,
 ) -> bytes:
-    """Build TLV AnnouncementPacket compatible with iOS implementation."""
-    payload = bytearray()
-
-    nickname_bytes = nickname.encode("utf-8")[:255]
-    payload.append(0x01)
-    payload.append(len(nickname_bytes))
-    payload.extend(nickname_bytes)
-
-    noise_public_key = identity.noise_public_key or b""
-    signing_public_key = identity.signing_public_key or b""
-
-    payload.append(0x02)
-    payload.append(len(noise_public_key))
-    payload.extend(noise_public_key)
-
-    payload.append(0x03)
-    payload.append(len(signing_public_key))
-    payload.extend(signing_public_key)
-
-    payload_bytes = bytes(payload)
+    payload = encode_announcement_tlv(
+        WireAnnouncementPacket(
+            nickname=nickname[:255],
+            noise_public_key=identity.noise_public_key or b"",
+            signing_public_key=identity.signing_public_key or b"",
+            direct_neighbors=None,
+        )
+    )
 
     return build_packet(
         msg_type=MessageType.ANNOUNCE,
-        payload=payload_bytes,
+        payload=payload,
         sender_peer_id_hex=identity.short_peer_id,
         signing_key=identity.signing_private_key,
     )
-
-
-def _build_base_packet(
-    *,
-    msg_type: MessageType,
-    payload: bytes,
-    sender_peer_id_hex: str,
-    recipient_peer_id_hex: str | None,
-    flags: int,
-    ttl: int,
-    timestamp_ms: int,
-) -> bytearray:
-    packet = bytearray()
-    packet.append(1)
-    packet.append(msg_type.value)
-    packet.append(ttl)
-    packet.extend(struct.pack(">Q", timestamp_ms))
-    packet.append(flags)
-    packet.extend(struct.pack(">H", len(payload)))
-    sender_bytes = bytes.fromhex(sender_peer_id_hex)
-    packet.extend(sender_bytes[:8].ljust(8, b"\x00"))
-    if recipient_peer_id_hex:
-        recipient_bytes = bytes.fromhex(recipient_peer_id_hex)
-        packet.extend(recipient_bytes[:8].ljust(8, b"\x00"))
-    packet.extend(payload)
-    return packet
 
 
 def _pad_packet(packet: bytearray) -> bytes:
